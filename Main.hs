@@ -9,6 +9,7 @@ import System.Posix.Files.ByteString(intersectFileModes)
 import Data.Map.Strict (Map, fromList, (!))
 import Text.PrettyPrint.Boxes as Boxes
 import Data.List
+import Data.ByteUnits
 
 hasMode :: FileMode -> FileMode -> Bool
 hasMode fa fb = intersectFileModes fa fb == fa
@@ -59,6 +60,6 @@ render (PathEntry fp fs) um gm = [
    rwxString $ fileMode fs
  , um ! fileOwner fs
  , gm ! fileGroup fs
- , show $ fileSize fs
+ , show $ getAppropriateUnits $ fromIntegral $ toInteger $ fileSize fs
  , fp ++ (bool "" "/" (isDirectory fs))
  ]
