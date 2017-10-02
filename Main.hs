@@ -6,10 +6,13 @@ import System.Posix.User (getUserEntryForID, getGroupEntryForID, userName, group
 import Data.Bool
 import System.Posix.Types(FileMode, UserID, GroupID)
 import System.Posix.Files.ByteString(intersectFileModes)
+import System.FilePath.Posix (takeExtension)
 import Data.Map.Strict (Map, fromList, (!))
 import Text.PrettyPrint.Boxes as Boxes
 import Data.List
 import Data.ByteUnits
+import Data.Function
+import Data.Ord (comparing)
 
 hasMode :: FileMode -> FileMode -> Bool
 hasMode fa fb = intersectFileModes fa fb == fa
@@ -32,7 +35,9 @@ getGroupMap x = do
 
 main :: IO ()
 main = do
-  c <- getDirectoryContents "."
+  dc <- getDirectoryContents "."
+  --- So tired --- sorry -- gotta sleep
+  let c = fmap fst $ concat $ groupBy ((==) `on` snd) $ sortBy (comparing snd) $ fmap (\x -> (x,takeExtension x)) dc
   fs <- mapM getFileStatus c
   let p = zipWith (PathEntry) c fs
   um <- getUserMap (fileOwner <$> fs)
@@ -60,6 +65,6 @@ render (PathEntry fp fs) um gm = [
    rwxString $ fileMode fs
  , um ! fileOwner fs
  , gm ! fileGroup fs
- , show $ getAppropriateUnits $ fromIntegral $ toInteger $ fileSize fs
+ , getShortHand . getAppropriateUnits $ ByteValue (fromIntegral . toInteger $ fileSize fs) Bytes
  , fp ++ (bool "" "/" (isDirectory fs))
  ]
