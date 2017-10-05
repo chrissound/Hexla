@@ -13,6 +13,9 @@ import Data.List
 import Data.ByteUnits
 import Data.Function
 import Data.Ord (comparing)
+import Data.Time.Clock
+import Data.Time.Format
+import Data.Time.Clock.POSIX
 
 hasMode :: FileMode -> FileMode -> Bool
 hasMode fa fb = intersectFileModes fa fb == fa
@@ -66,5 +69,6 @@ render (PathEntry fp fs) um gm = [
  , um ! fileOwner fs
  , gm ! fileGroup fs
  , getShortHand . getAppropriateUnits $ ByteValue (fromIntegral . toInteger $ fileSize fs) Bytes
+ , formatTime defaultTimeLocale "%Y/%m/%d %H:%M" ( posixSecondsToUTCTime (realToFrac $ modificationTime fs :: NominalDiffTime) :: UTCTime)
  , fp ++ (bool "" "/" (isDirectory fs))
  ]
