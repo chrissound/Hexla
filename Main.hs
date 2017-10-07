@@ -20,11 +20,18 @@ import Data.Time.Clock.POSIX
 hasMode :: FileMode -> FileMode -> Bool
 hasMode fa fb = intersectFileModes fa fb == fa
 
-
-data PathEntry = PathEntry FilePath FileStatus
+data ListingEntry = ListingPathEntry PathEntry | ListingString String
+data PathEntry = PathEntry {
+  filePath :: FilePath,
+  fileExtension :: FileExtension,
+  fileStatus :: FileStatus,
+  user :: String,
+  group :: String
+  }
 
 type UserIDMap = Map UserID String
 type GroupIDMap = Map GroupID String
+type FileExtension = String
 
 getUserMap :: [UserID] -> IO UserIDMap
 getUserMap x = do
@@ -36,17 +43,26 @@ getGroupMap x = do
   us <- mapM getGroupEntryForID x
   return $ fromList $ zip x (groupName <$> us)
 
+getMetaListing :: [[PathEntry]] -> [ListingEntry]
+getMetaListing (x:xs) = ListingString (fileExtension $ head x) : (++) (fmap ListingPathEntry x) (getMetaListing xs)
+getMetaListing ([]) =  []
+
 main :: IO ()
 main = do
   dc <- getDirectoryContents "."
   --- So tired --- sorry -- gotta sleep
   let c = fmap fst $ concat $ groupBy ((==) `on` snd) $ sortBy (comparing snd) $ fmap (\x -> (x,takeExtension x)) dc
   fs <- mapM getFileStatus c
-  let p = zipWith (PathEntry) c fs
-  um <- getUserMap (fileOwner <$> fs)
-  gm <- getGroupMap (fileGroup <$> fs)
-  let tableV = (\z -> Main.render z um gm) <$> p
+  um <- getUserMap (fileOwner <$> fs) :: IO UserIDMap
+  gm <- getGroupMap (fileGroup <$> fs) :: IO GroupIDMap
+  let p = zipWith5 PathEntry c fe fs userIds groupIds where
+        fe = takeExtension <$> c
+        userIds = ((um !) <$> (fileOwner <$> fs))
+        groupIds = ((gm !)) <$> (fileGroup <$> fs)
+  let tableV = renderEntry <$>
+        (getMetaListing $ groupBy (\(PathEntry _ fe _ _ _) (PathEntry _ fe' _ _ _) -> fe == fe') p)
   putStrLn $ table tableV
+  putStrLn $ "Total count: " ++ (show $ length p)
 
 table :: [[String]] -> String
 table r = Boxes.render $ hsep 1 left (map (vcat left . map text) (transpose r))
@@ -63,12 +79,18 @@ rwxString fm = ""
   ++ (bool "-" "w" $ hasMode otherWriteMode fm)
   ++ (bool "-" "x" $ hasMode otherExecuteMode fm)
 
-render :: PathEntry -> UserIDMap -> GroupIDMap -> [String]
-render (PathEntry fp fs) um gm = [
-   rwxString $ fileMode fs
- , um ! fileOwner fs
- , gm ! fileGroup fs
+renderPathEntry :: PathEntry -> [String]
+renderPathEntry (PathEntry fp _ fs u g) = [
+   ""
+ , (bool "." "d" (isDirectory fs))
+ , rwxString $ fileMode fs
+ , u
+ , g
  , getShortHand . getAppropriateUnits $ ByteValue (fromIntegral . toInteger $ fileSize fs) Bytes
- , formatTime defaultTimeLocale "%Y/%m/%d %H:%M" ( posixSecondsToUTCTime (realToFrac $ modificationTime fs :: NominalDiffTime) :: UTCTime)
+ , formatTime defaultTimeLocale "%x %r" ( posixSecondsToUTCTime (realToFrac $ modificationTime fs :: NominalDiffTime) :: UTCTime)
  , fp ++ (bool "" "/" (isDirectory fs))
  ]
+
+renderEntry :: ListingEntry -> [String]
+renderEntry (ListingPathEntry pe) = renderPathEntry pe
+renderEntry (ListingString s) = [s, "", "", "", "", "", "", ""]
