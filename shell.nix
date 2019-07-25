@@ -1,4 +1,4 @@
-{ nixpkgs ? import <nixpkgs> {}, compiler ? "default", doBenchmark ? false }:
+{ nixpkgs ? import <nixpkgs> {}, compiler ? "default", doBenchmark ? false , withHoogle ? true}:
 
 let
 
@@ -21,9 +21,22 @@ let
         license = stdenv.lib.licenses.bsd3;
       };
 
-  haskellPackages = if compiler == "default"
+  haskellPackages' = if compiler == "default"
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
+
+  haskellPackages = (
+    if withHoogle
+    then  haskellPackages'.override {
+      overrides = (self: super:
+        {
+          ghc = super.ghc // { withPackages = super.ghc.withHoogle; };
+          ghcWithPackages = self.ghc.withPackages;
+        }
+      );
+    }
+    else haskellPackages'
+  );
 
   variant = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
 
