@@ -5,7 +5,7 @@ let
   inherit (nixpkgs) pkgs;
 
   f = { mkDerivation, base, byteunits, containers, directory
-      , filepath, hpack, rainbox, stdenv, time, unix
+      , filepath, hpack, rainbow, rainbox, stdenv, text, time, unix
       }:
       mkDerivation {
         pname = "app";
@@ -15,7 +15,8 @@ let
         isExecutable = true;
         libraryToolDepends = [ hpack ];
         executableHaskellDepends = [
-          base byteunits containers directory filepath rainbox time unix
+          base byteunits containers directory filepath rainbow rainbox text
+          time unix
         ];
         preConfigure = "hpack";
         license = stdenv.lib.licenses.bsd3;

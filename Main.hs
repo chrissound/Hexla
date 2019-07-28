@@ -1,3 +1,5 @@
+{-# Language OverloadedStrings #-}
+{-# Options -Wno-unused-imports #-}
 module Main where
 
 import System.Directory
@@ -8,7 +10,6 @@ import System.Posix.Types(FileMode, UserID, GroupID)
 import System.Posix.Files.ByteString(intersectFileModes)
 import System.FilePath.Posix (takeExtension)
 import Data.Map.Strict (Map, fromList, (!))
-import Text.PrettyPrint.Boxes as Boxes
 import Data.List
 import Data.ByteUnits
 import Data.Function
@@ -16,6 +17,14 @@ import Data.Ord (comparing)
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Time.Clock.POSIX
+--import Debug.Trace
+import Rainbox
+-- import Rainbox.Core
+import qualified Rainbow
+import Data.Text (Text, pack, unpack)
+import Data.Foldable
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 
 hasMode :: FileMode -> FileMode -> Bool
 hasMode fa fb = intersectFileModes fa fb == fa
@@ -50,7 +59,6 @@ getMetaListing ([]) =  []
 main :: IO ()
 main = do
   dc <- getDirectoryContents "."
-  --- So tired --- sorry -- gotta sleep
   let c = fmap fst $ concat $ groupBy ((==) `on` snd) $ sortBy (comparing snd) $ fmap (\x -> (x,takeExtension x)) dc
   fs <- mapM getFileStatus c
   um <- getUserMap (fileOwner <$> fs) :: IO UserIDMap
@@ -61,11 +69,65 @@ main = do
         groupIds = ((gm !)) <$> (fileGroup <$> fs)
   let tableV = renderEntry <$>
         (getMetaListing $ groupBy (\(PathEntry _ fe _ _ _) (PathEntry _ fe' _ _ _) -> fe == fe') p)
-  putStrLn $ table tableV
-  putStrLn $ "Total count: " ++ (show $ length p)
+  -- let tableVV = table tableV
+  -- mapM_ RainbowputChunk . toList $ render $ tableVV
+  mapM_ Rainbow.putChunk . toList $ render $ horizontalStationTable tableV
 
-table :: [[String]] -> String
-table r = Boxes.render $ hsep 1 left (map (vcat left . map text) (transpose r))
+  putStrLn $ "Total count: " ++ (show $ length p)
+  -- putStrLn $ show $ content tableVV
+  -- let cnt = content tableVV
+  -- case (cnt) of
+  --   Row x -> do
+  --     mapM_ (\z -> do
+  --              putStrLn ""
+  --              putStrLn "New box:"
+  --              print z) x
+  --     print $ length x
+  --   _ -> print "Nope"
+
+table :: [[String]] -> Box Vertical
+table x = -- boxV where
+  mconcat $
+  fmap
+    (\x' -> rowF x')
+    x
+
+rowF :: [String] -> Box Vertical
+rowF x = mconcat $ (\x' -> wrap left Rainbow.magenta ((textBox Rainbow.green $ pack $ x') :: Box Vertical)) <$> x
+
+textBox :: Rainbow.Radiant -> Text -> Rainbox.Box a
+textBox r = Rainbox.fromChunk Rainbox.center r . Rainbow.chunk
+
+-- stationRow :: Rainbow.Radiant -> Station -> [Rainbox.Cell]
+-- stationRow bk st =
+--   [ nameCell bk . name $ st
+--   , linesCell bk . metroLines $ st
+--   , addressCell bk . address $ st
+--   , undergroundCell bk . underground $ st
+--   ]stationColumn :: Station -> [Rainbox.Cell]
+
+
+nameCell :: Rainbow.Radiant -> Text -> Rainbox.Cell
+nameCell bk nm = Rainbox.Cell cks Rainbox.top Rainbox.left bk
+  where
+    cks = Seq.singleton . Seq.singleton $ (Rainbow.chunk nm & Rainbow.back bk)
+
+stationColumn :: [String] -> Seq Cell
+stationColumn = fcol . xyz . Seq.fromList . fmap (nameCell Rainbow.green . pack)
+
+fcol :: Seq Cell -> Seq Cell
+fcol =
+    Seq.adjust (\x -> x { _background = Rainbow.grey}) 0
+  . Seq.adjust (\x -> x { _rows = fmap (fmap (id)) _rows x}) 6
+
+xyz :: Seq Cell -> Seq Cell
+xyz = (Rainbox.intersperse (separator Rainbow.black 1))
+
+horizontalStationTable :: [[String]] -> Rainbox.Box Rainbox.Vertical
+horizontalStationTable vvv
+  = Rainbox.tableByRows
+  . Seq.fromList
+  $ stationColumn <$> vvv
 
 rwxString :: FileMode -> String
 rwxString fm = ""

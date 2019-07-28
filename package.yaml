@@ -1,0 +1,21 @@
+name: app
+version: '0.1.0.0'
+author: CabalSaneDefault
+maintainer: nobody
+license: BSD3
+extra-source-files:
+- ChangeLog.md
+dependencies:
+- base
+- directory
+- unix
+- containers
+- rainbox
+- rainbow
+- byteunits >=0.3.0.2 && <1.0
+- filepath
+- time
+- text
+executables:
+  app:
+    main: Main.hs

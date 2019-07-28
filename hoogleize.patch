@@ -1,0 +1,47 @@
+From 7e351a663888e76f1657e8ac847f945f23e38221 Mon Sep 17 00:00:00 2001
+From: Chris S <chris@soundshare.co.uk>
+Date: Thu, 25 Jul 2019 23:25:18 +0000
+Subject: [PATCH] hoogle shell nix
+
+---
+ shell.nix | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/shell.nix b/shell.nix
+index 540ade3..e207d6e 100644
+--- a/shell.nix
++++ b/shell.nix
+@@ -1,4 +1,4 @@
+-{ nixpkgs ? import <nixpkgs> {}, compiler ? "default", doBenchmark ? false }:
++{ nixpkgs ? import <nixpkgs> {}, compiler ? "default", doBenchmark ? false , withHoogle ? true}:
+ 
+ let
+ 
+@@ -21,10 +21,23 @@ let
+         license = stdenv.lib.licenses.bsd3;
+       };
+ 
+-  haskellPackages = if compiler == "default"
++  haskellPackages' = if compiler == "default"
+                        then pkgs.haskellPackages
+                        else pkgs.haskell.packages.${compiler};
+ 
++  haskellPackages = (
++    if withHoogle
++    then  haskellPackages'.override {
++      overrides = (self: super:
++        {
++          ghc = super.ghc // { withPackages = super.ghc.withHoogle; };
++          ghcWithPackages = self.ghc.withPackages;
++        }
++      );
++    }
++    else haskellPackages'
++  );
++
+   variant = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
+ 
+   drv = variant (haskellPackages.callPackage f {});
+-- 
+2.19.2
+
