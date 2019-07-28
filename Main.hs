@@ -93,7 +93,7 @@ table x = -- boxV where
     x
 
 rowF :: [String] -> Box Vertical
-rowF x = mconcat $ (\x' -> wrap left Rainbow.magenta ((textBox Rainbow.green $ pack $ x') :: Box Vertical)) <$> x
+rowF x = mconcat $ (\x' -> wrap left Rainbow.magenta ((textBox Rainbow.white $ pack $ x') :: Box Vertical)) <$> x
 
 textBox :: Rainbow.Radiant -> Text -> Rainbox.Box a
 textBox r = Rainbox.fromChunk Rainbox.center r . Rainbow.chunk
@@ -107,18 +107,18 @@ textBox r = Rainbox.fromChunk Rainbox.center r . Rainbow.chunk
 --   ]stationColumn :: Station -> [Rainbox.Cell]
 
 
-nameCell :: Rainbow.Radiant -> Text -> Rainbox.Cell
-nameCell bk nm = Rainbox.Cell cks Rainbox.top Rainbox.left bk
+myCell :: Rainbow.Radiant -> Rainbow.Radiant -> Text -> Rainbox.Cell
+myCell b f vv = Rainbox.Cell v Rainbox.top Rainbox.left b
   where
-    cks = Seq.singleton . Seq.singleton $ (Rainbow.chunk nm & Rainbow.back bk)
+    v = Seq.singleton . Seq.singleton $ (Rainbow.chunk vv & Rainbow.fore f)
 
-stationColumn :: [String] -> Seq Cell
-stationColumn = fcol . xyz . Seq.fromList . fmap (nameCell Rainbow.green . pack)
+stationColumn :: [(String, Rainbow.Radiant)] -> Seq Cell
+stationColumn = fcol . xyz . Seq.fromList . fmap (\(v,c) -> myCell Rainbow.black c (pack v))
 
 fcol :: Seq Cell -> Seq Cell
 fcol =
     Seq.adjust (\x -> x { _background = Rainbow.grey}) 0
-  . Seq.adjust (\x -> x { _rows = fmap (fmap (id)) _rows x}) 6
+  -- . Seq.adjust (\x -> x { _rows = fmap (fmap (id)) _rows x}) 6
 
 xyz :: Seq Cell -> Seq Cell
 xyz = (Rainbox.intersperse (separator Rainbow.black 1))
@@ -127,7 +127,19 @@ horizontalStationTable :: [[String]] -> Rainbox.Box Rainbox.Vertical
 horizontalStationTable vvv
   = Rainbox.tableByRows
   . Seq.fromList
-  $ stationColumn <$> vvv
+  $ (stationColumn <$> (fmap (\x -> zip x (colssss)) vvv ))
+
+colssss :: [Rainbow.Radiant]
+colssss = [
+    Rainbow.white
+  , Rainbow.white
+  , Rainbow.white
+  , Rainbow.yellow
+  , Rainbow.yellow
+  , Rainbow.green
+  , Rainbow.blue
+  , Rainbow.white
+  ]
 
 rwxString :: FileMode -> String
 rwxString fm = ""
