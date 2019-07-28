@@ -16,6 +16,9 @@ dependencies:
 - filepath
 - time
 - text
+- optparse-applicative
+- typed-process
+- string-conversions
 executables:
   app:
     main: Main.hs

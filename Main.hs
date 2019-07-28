@@ -1,5 +1,6 @@
 {-# Language OverloadedStrings #-}
 {-# Options -Wno-unused-imports #-}
+{-# Options -Wno-unused-matches #-}
 module Main where
 
 import System.Directory
@@ -25,6 +26,11 @@ import Data.Text (Text, pack, unpack)
 import Data.Foldable
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+import Options.Applicative
+import Control.Monad (join, forM)
+import System.Process.Typed
+import Data.String
+import Data.String.Conversions 
 
 hasMode :: FileMode -> FileMode -> Bool
 hasMode fa fb = intersectFileModes fa fb == fa
@@ -35,7 +41,8 @@ data PathEntry = PathEntry {
   fileExtension :: FileExtension,
   fileStatus :: FileStatus,
   user :: String,
-  group :: String
+  group :: String,
+  commandHook :: String
   }
 
 type UserIDMap = Map UserID String
@@ -57,23 +64,66 @@ getMetaListing (x:xs) = ListingString (fileExtension $ head x) : (++) (fmap List
 getMetaListing ([]) =  []
 
 main :: IO ()
-main = do
-  dc <- getDirectoryContents "."
-  let c = fmap fst $ concat $ groupBy ((==) `on` snd) $ sortBy (comparing snd) $ fmap (\x -> (x,takeExtension x)) dc
+main = join . customExecParser (prefs showHelpOnError) $
+  info (helper <*> parser)
+  (  fullDesc
+  <> header "list directories"
+  )
+  where
+    parser :: Parser (IO ())
+    parser =
+      work
+        <$> many (argument str
+            (  metavar "STRING"
+            <> help "string parameter"
+            ))
+        <*> (optional $ strOption
+            (  long "command"
+            <> help "command"
+            <> showDefault
+            ))
+
+work :: [String] -> Maybe String -> IO ()
+work [] x = do
+  getDirectoryContents "." >>= flip main' x
+work f x = main' f x
+
+ffff :: [String] -> String -> IO [String]
+ffff f c = 
+  forM f (\f' -> do
+      (dateOut2, dateErr2) <- readProcess_ $ fromString (c ++ " " ++ f' ++ " | head -n 1 | sed -e 's/.*|//g'")
+      pure $ cs $ dateOut2 <> dateErr2
+    )
+
+main' :: [FilePath] -> Maybe String -> IO ()
+main' dc command' = do
+  -- xxx <- case command' of
+  --   Just vvvv -> do
+  --     (dateOut2, dateErr2) <- readProcess_ $ fromString vvvv
+  --     pure $ [dateOut2 <> dateErr2]
+  --   Nothing -> pure []
+  -- print xxx
+  let c =
+        fmap fst
+        $ concat $ groupBy ((==) `on` snd)
+        $ sortBy (comparing snd)
+        $ fmap (\x -> (x,takeExtension x)) dc
+  commandHoo <- case command' of
+    Just ccccc -> ffff c ccccc
+    Nothing -> pure $ (const "") <$> dc
   fs <- mapM getFileStatus c
   um <- getUserMap (fileOwner <$> fs) :: IO UserIDMap
   gm <- getGroupMap (fileGroup <$> fs) :: IO GroupIDMap
-  let p = zipWith5 PathEntry c fe fs userIds groupIds where
+  let p = zipWith6 PathEntry c fe fs userIds groupIds commandHoo where
         fe = takeExtension <$> c
         userIds = ((um !) <$> (fileOwner <$> fs))
         groupIds = ((gm !)) <$> (fileGroup <$> fs)
   let tableV = renderEntry <$>
-        (getMetaListing $ groupBy (\(PathEntry _ fe _ _ _) (PathEntry _ fe' _ _ _) -> fe == fe') p)
+        (getMetaListing $ groupBy (\(PathEntry _ fe _ _ _ _) (PathEntry _ fe' _ _ _ _) -> fe == fe') p)
   -- let tableVV = table tableV
   -- mapM_ RainbowputChunk . toList $ render $ tableVV
   mapM_ Rainbow.putChunk . toList $ render $ horizontalStationTable tableV
 
-  putStrLn $ "Total count: " ++ (show $ length p)
   -- putStrLn $ show $ content tableVV
   -- let cnt = content tableVV
   -- case (cnt) of
@@ -117,7 +167,7 @@ stationColumn = fcol . xyz . Seq.fromList . fmap (\(v,c) -> myCell Rainbow.black
 
 fcol :: Seq Cell -> Seq Cell
 fcol =
-    Seq.adjust (\x -> x { _background = Rainbow.grey}) 0
+    Seq.adjust (\x -> x { _background = Rainbow.green}) 0
   -- . Seq.adjust (\x -> x { _rows = fmap (fmap (id)) _rows x}) 6
 
 xyz :: Seq Cell -> Seq Cell
@@ -139,6 +189,7 @@ colssss = [
   , Rainbow.green
   , Rainbow.blue
   , Rainbow.white
+  , Rainbow.white
   ]
 
 rwxString :: FileMode -> String
@@ -154,7 +205,7 @@ rwxString fm = ""
   ++ (bool "-" "x" $ hasMode otherExecuteMode fm)
 
 renderPathEntry :: PathEntry -> [String]
-renderPathEntry (PathEntry fp _ fs u g) = [
+renderPathEntry (PathEntry fp _ fs u g ccc) = [
    ""
  , (bool "." "d" (isDirectory fs))
  , rwxString $ fileMode fs
@@ -163,8 +214,9 @@ renderPathEntry (PathEntry fp _ fs u g) = [
  , getShortHand . getAppropriateUnits $ ByteValue (fromIntegral . toInteger $ fileSize fs) Bytes
  , formatTime defaultTimeLocale "%x %r" ( posixSecondsToUTCTime (realToFrac $ modificationTime fs :: NominalDiffTime) :: UTCTime)
  , fp ++ (bool "" "/" (isDirectory fs))
+ , ccc
  ]
 
 renderEntry :: ListingEntry -> [String]
 renderEntry (ListingPathEntry pe) = renderPathEntry pe
-renderEntry (ListingString s) = [s, "", "", "", "", "", "", ""]
+renderEntry (ListingString s) = [s]

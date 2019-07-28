@@ -21,5 +21,6 @@ data PathEntry = PathEntry {
   fileGroup :: FileGroup,
   fileCreated :: FileCreated,
   fileModified :: FileModified,
-  fileName :: FileName
+  fileName :: FileName,
+  fileCommandHook :: String
   }
