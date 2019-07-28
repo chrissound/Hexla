@@ -1,2 +1,2 @@
 :set -Wall
-:set args .ghci Main.hs PathEntry.hs app.cabal package.yaml shell.nix --command "git diff --stat "
+:set args --command "git diff --color=always --stat-width=20 --stat --" --group-by date

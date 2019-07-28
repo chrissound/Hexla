@@ -12,6 +12,7 @@ import System.Posix.Files.ByteString(intersectFileModes)
 import System.FilePath.Posix (takeExtension)
 import Data.Map.Strict (Map, fromList, (!))
 import Data.List
+import Data.List.Split
 import Data.ByteUnits
 import Data.Function
 import Data.Ord (comparing)
@@ -31,6 +32,8 @@ import Control.Monad (join, forM)
 import System.Process.Typed
 import Data.String
 import Data.String.Conversions 
+
+import Rainbow.Types
 
 hasMode :: FileMode -> FileMode -> Bool
 hasMode fa fb = intersectFileModes fa fb == fa
@@ -82,27 +85,26 @@ main = join . customExecParser (prefs showHelpOnError) $
             <> help "command"
             <> showDefault
             ))
+        <*> (optional $ strOption
+            (  long "group-by"
+            <> help "group-by"
+            <> showDefault
+            ))
 
-work :: [String] -> Maybe String -> IO ()
-work [] x = do
-  getDirectoryContents "." >>= flip main' x
-work f x = main' f x
+work :: [String] -> Maybe String -> Maybe String -> IO ()
+work [] x gb = do
+  getDirectoryContents "." >>= (\f -> main' f x gb)
+work f x gb = main' f x gb
 
 ffff :: [String] -> String -> IO [String]
 ffff f c = 
   forM f (\f' -> do
-      (dateOut2, dateErr2) <- readProcess_ $ fromString (c ++ " " ++ f' ++ " | head -n 1 | sed -e 's/.*|//g'")
+      (dateOut2, dateErr2) <- readProcess_ $ fromString (c ++ " " ++ f' ++ " | head -n 1 | sed -e 's/.*|//g' | tr '\n' ' '")
       pure $ cs $ dateOut2 <> dateErr2
     )
 
-main' :: [FilePath] -> Maybe String -> IO ()
-main' dc command' = do
-  -- xxx <- case command' of
-  --   Just vvvv -> do
-  --     (dateOut2, dateErr2) <- readProcess_ $ fromString vvvv
-  --     pure $ [dateOut2 <> dateErr2]
-  --   Nothing -> pure []
-  -- print xxx
+main' :: [FilePath] -> Maybe String -> Maybe String -> IO ()
+main' dc command' gb = do
   let c =
         fmap fst
         $ concat $ groupBy ((==) `on` snd)
@@ -118,25 +120,16 @@ main' dc command' = do
         fe = takeExtension <$> c
         userIds = ((um !) <$> (fileOwner <$> fs))
         groupIds = ((gm !)) <$> (fileGroup <$> fs)
-  let tableV = renderEntry <$>
-        (getMetaListing $ groupBy (\(PathEntry _ fe _ _ _ _) (PathEntry _ fe' _ _ _ _) -> fe == fe') p)
-  -- let tableVV = table tableV
-  -- mapM_ RainbowputChunk . toList $ render $ tableVV
+  let tableV = case gb of
+        Just "ext" -> renderEntry <$> (getMetaListing $ groupBy (\(PathEntry _ fe _ _ _ _) (PathEntry _ fe' _ _ _ _) -> fe == fe') p)
+        Just "date" -> renderEntry <$> (ListingPathEntry <$> sortOn (modificationTime . fileStatus) p)
+        Just "name" -> renderEntry <$> (ListingPathEntry <$> sortOn (filePath) p)
+        _ -> renderEntry <$> (ListingPathEntry <$> p)
   mapM_ Rainbow.putChunk . toList $ render $ horizontalStationTable tableV
 
-  -- putStrLn $ show $ content tableVV
-  -- let cnt = content tableVV
-  -- case (cnt) of
-  --   Row x -> do
-  --     mapM_ (\z -> do
-  --              putStrLn ""
-  --              putStrLn "New box:"
-  --              print z) x
-  --     print $ length x
-  --   _ -> print "Nope"
 
 table :: [[String]] -> Box Vertical
-table x = -- boxV where
+table x = 
   mconcat $
   fmap
     (\x' -> rowF x')
@@ -148,22 +141,17 @@ rowF x = mconcat $ (\x' -> wrap left Rainbow.magenta ((textBox Rainbow.white $ p
 textBox :: Rainbow.Radiant -> Text -> Rainbox.Box a
 textBox r = Rainbox.fromChunk Rainbox.center r . Rainbow.chunk
 
--- stationRow :: Rainbow.Radiant -> Station -> [Rainbox.Cell]
--- stationRow bk st =
---   [ nameCell bk . name $ st
---   , linesCell bk . metroLines $ st
---   , addressCell bk . address $ st
---   , undergroundCell bk . underground $ st
---   ]stationColumn :: Station -> [Rainbox.Cell]
 
-
-myCell :: Rainbow.Radiant -> Rainbow.Radiant -> Text -> Rainbox.Cell
-myCell b f vv = Rainbox.Cell v Rainbox.top Rainbox.left b
+myCell :: Rainbow.Radiant -> Rainbow.Radiant -> Alignment Vertical -> Text -> Rainbox.Cell
+myCell b f a vv = Rainbox.Cell v Rainbox.top a b
   where
     v = Seq.singleton . Seq.singleton $ (Rainbow.chunk vv & Rainbow.fore f)
 
-stationColumn :: [(String, Rainbow.Radiant)] -> Seq Cell
-stationColumn = fcol . xyz . Seq.fromList . fmap (\(v,c) -> myCell Rainbow.black c (pack v))
+defaultText :: Rainbow.Radiant
+defaultText = Radiant (Color Nothing) (Color Nothing)
+
+stationColumn :: [(String, Rainbow.Radiant, Alignment Vertical)] -> Seq Cell
+stationColumn = fcol . xyz . Seq.fromList . fmap (\(v,c,a) -> myCell defaultText c a (pack v))
 
 fcol :: Seq Cell -> Seq Cell
 fcol =
@@ -171,13 +159,29 @@ fcol =
   -- . Seq.adjust (\x -> x { _rows = fmap (fmap (id)) _rows x}) 6
 
 xyz :: Seq Cell -> Seq Cell
-xyz = (Rainbox.intersperse (separator Rainbow.black 1))
+xyz = (Rainbox.intersperse (separator defaultText 1))
 
 horizontalStationTable :: [[String]] -> Rainbox.Box Rainbox.Vertical
 horizontalStationTable vvv
   = Rainbox.tableByRows
   . Seq.fromList
-  $ (stationColumn <$> (fmap (\x -> zip x (colssss)) vvv ))
+  $ (stationColumn <$> (fmap (\x -> zip3 x (colssss) aliii) vvv ))
+
+aliii :: [Alignment Vertical]
+aliii = [
+    Rainbox.right
+  , Rainbox.right
+  , Rainbox.right
+  , Rainbox.right
+  , Rainbox.right
+  , Rainbox.right
+  , Rainbox.left
+  , Rainbox.left
+  , Rainbox.left
+  , Rainbox.left
+        ]
+
+
 
 colssss :: [Rainbow.Radiant]
 colssss = [
@@ -186,6 +190,7 @@ colssss = [
   , Rainbow.white
   , Rainbow.yellow
   , Rainbow.yellow
+  , Rainbow.green
   , Rainbow.green
   , Rainbow.blue
   , Rainbow.white
@@ -211,11 +216,13 @@ renderPathEntry (PathEntry fp _ fs u g ccc) = [
  , rwxString $ fileMode fs
  , u
  , g
- , getShortHand . getAppropriateUnits $ ByteValue (fromIntegral . toInteger $ fileSize fs) Bytes
+ , head $ splitOn " " $ fileSize'
+ , head $ tail $ splitOn " " $ fileSize'
  , formatTime defaultTimeLocale "%x %r" ( posixSecondsToUTCTime (realToFrac $ modificationTime fs :: NominalDiffTime) :: UTCTime)
  , fp ++ (bool "" "/" (isDirectory fs))
  , ccc
  ]
+  where fileSize' = getShortHand . getAppropriateUnits $ ByteValue (fromIntegral . toInteger $ fileSize fs) Bytes
 
 renderEntry :: ListingEntry -> [String]
 renderEntry (ListingPathEntry pe) = renderPathEntry pe

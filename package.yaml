@@ -1,7 +1,7 @@
-name: app
-version: '0.1.0.0'
-author: CabalSaneDefault
-maintainer: nobody
+name: hexla
+version: '0.2.0.0'
+author: Chris Stryczynski
+maintainer: Chris Stryczynski
 license: BSD3
 extra-source-files:
 - ChangeLog.md
@@ -18,7 +18,8 @@ dependencies:
 - text
 - optparse-applicative
 - typed-process
+- split
 - string-conversions
 executables:
-  app:
+  hexla:
     main: Main.hs
