@@ -150,16 +150,15 @@ myCell b f a vv = Rainbox.Cell v Rainbox.top a b
 defaultText :: Rainbow.Radiant
 defaultText = Radiant (Color Nothing) (Color Nothing)
 
-stationColumn :: [(String, Rainbow.Radiant, Alignment Vertical)] -> Seq Cell
-stationColumn = fcol . xyz . Seq.fromList . fmap (\(v,c,a) -> myCell defaultText c a (pack v))
-
 fcol :: Seq Cell -> Seq Cell
 fcol =
-    Seq.adjust (\x -> x { _background = Rainbow.green}) 0
-  -- . Seq.adjust (\x -> x { _rows = fmap (fmap (id)) _rows x}) 6
+    Seq.adjust (\x -> x { _background = defaultText}) 0
 
 xyz :: Seq Cell -> Seq Cell
 xyz = (Rainbox.intersperse (separator defaultText 1))
+
+stationColumn :: [(String, Rainbow.Radiant, Alignment Vertical)] -> Seq Cell
+stationColumn = fcol . xyz . Seq.fromList . fmap (\(v,c,a) -> myCell defaultText c a (pack v))
 
 horizontalStationTable :: [[String]] -> Rainbox.Box Rainbox.Vertical
 horizontalStationTable vvv
@@ -169,7 +168,7 @@ horizontalStationTable vvv
 
 aliii :: [Alignment Vertical]
 aliii = [
-    Rainbox.right
+    Rainbox.left
   , Rainbox.right
   , Rainbox.right
   , Rainbox.right
