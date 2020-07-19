@@ -1,6 +1,6 @@
 # Hexla - a soon to be improved ls in Haskell
 
-![Screenshot](demo.jpeg)
+![Screenshot](demo.png)
 
 ## What problem does this solve?
 
